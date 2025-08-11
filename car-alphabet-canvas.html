@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>자동차 테마 알파벳 따라쓰기</title>
+<style>
+  :root{
+    --bg:#fffaf2; --ink:#222;
+    --brand:#ff7b54; --brand-2:#ffd166; --ok:#22c55e; --panel:#fff;
+    --shadow:0 8px 24px rgba(0,0,0,.12); --radius:18px;
+  }
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:16px}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+  .title{display:flex;align-items:center;gap:10px}
+  .logo{font-size:28px}
+  h1{font-size:22px;margin:0}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:var(--brand);color:#fff;border:0;border-radius:999px;padding:10px 16px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
+  button.btn-lite{background:var(--brand-2);color:#5b3b00}
+  button.btn-ghost{background:#fff;color:#333;border:2px solid #f1f1f1}
+  .badge{background:#ffe7f4;border:2px dashed #f6c;padding:6px 10px;border-radius:999px;font-size:14px}
+  .main{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
+  @media (max-width:900px){.main{grid-template-columns:1fr}}
+  .canvas-card{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);position:relative;overflow:hidden;min-height:420px}
+  .canvas-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px dashed #eee;background:linear-gradient(180deg,#fff,#fff7f0)}
+  .canvas-wrap{position:relative;width:100%;height:64vh;min-height:360px;background:#fff}
+  canvas{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none}
+  #guideCanvas{z-index:1;pointer-events:none}
+  #drawCanvas{z-index:2;pointer-events:auto}
+  #fxCanvas{z-index:3;pointer-events:none}
+  .side{display:flex;flex-direction:column;gap:14px}
+  .panel{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px}
+  .progress{height:18px;background:#f1f5f9;border-radius:999px;overflow:hidden}
+  .bar{height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#3b82f6);transition:width .2s ease}
+  .meta{font-size:14px;display:flex;justify-content:space-between;margin-top:6px}
+  .letter-grid{display:grid;grid-template-columns:repeat(13,1fr);gap:6px;margin-top:6px}
+  @media (max-width:640px){.letter-grid{grid-template-columns:repeat(8,1fr)}}
+  .letter-btn{background:#fff;border:2px solid #eee;border-radius:12px;padding:8px 0;text-align:center;cursor:pointer;font-weight:800;box-shadow:var(--shadow)}
+  .letter-btn.active{border-color:var(--brand);background:#fff8f3;color:#000}
+  .vehicle{display:flex;align-items:center;gap:8px;font-weight:800;font-size:18px;padding:6px 0}
+  .vehicle .emoji{font-size:24px}
+  .album{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:8px}
+  .sticker{background:#fffdf7;border:2px dashed #f2c94c;border-radius:14px;min-height:56px;display:flex;align-items:center;justify-content:center;font-size:28px;user-select:none}
+  .sticker.locked{filter:grayscale(1) opacity(.35)}
+  .board{position:relative;height:220px;background:repeating-linear-gradient(45deg,#fafafa,#fafafa 12px,#f7f7f7 12px,#f7f7f7 24px);border-radius:14px;overflow:hidden}
+  .board .drop{position:absolute;font-size:40px;cursor:grab;user-select:none}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:#111;color:#fff;padding:10px 14px;border-radius:999px;font-weight:700;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .3s ease}
+  .toast.show{opacity:1}
+  .hint{font-size:12px;opacity:.7}
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:10000}
+  .modal.show{display:flex}
+  .modal .dialog{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 18px 14px;width:min(92vw,420px);text-align:center;transform:scale(.98);animation:pop .18s ease-out forwards;outline:none}
+  .modal .emoji{font-size:56px;margin-bottom:6px}
+  .modal h2{margin:6px 0 4px;font-size:24px}
+  .modal p{margin:0 0 12px;font-size:16px;opacity:.9}
+  .modal .actions{display:flex;gap:8px;justify-content:center}
+  @keyframes pop{to{transform:scale(1)}}
+  /* Test badge */
+  #testBadge{position:fixed;right:10px;bottom:10px;background:#111;color:#fff;font-size:12px;padding:6px 8px;border-radius:8px;opacity:.85}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">
+        <div class="logo">🚗✨</div>
+        <h1>자동차 테마 알파벳 따라쓰기 <span class="badge">36개월+</span></h1>
+      </div>
+      <div class="controls">
+		<button id="guideToggle" class="btn-ghost" title="가이드 모드 전환">가이드: 점선</button>
+        <button id="prevBtn" aria-label="이전">⬅️ 이전</button>
+        <button id="nextBtn" aria-label="다음">다음 ➡️</button>
+        <button id="clearBtn" class="btn-lite" title="지우기">🧽 지우기</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <section class="canvas-card" aria-label="그리기 영역">
+        <div class="canvas-toolbar">
+          <div class="vehicle"><span class="emoji" id="vehEmoji">🚑</span><span id="vehLabel">A = Ambulance</span></div>
+          <div class="hint">점선을 80% 이상 따라 그리면 성공! (마우스/손가락 사용)</div>
+        </div>
+        <div id="canvasWrap" class="canvas-wrap">
+          <canvas id="guideCanvas"></canvas>
+          <canvas id="drawCanvas"></canvas>
+          <canvas id="fxCanvas"></canvas>
+        </div>
+      </section>
+
+      <aside class="side">
+        <div class="panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+            <strong>진행도</strong>
+            <span id="percentLbl">0%</span>
+          </div>
+          <div class="progress" aria-label="진행 바"><div id="bar" class="bar"></div></div>
+          <div class="meta">
+            <span>목표: 80% 이상</span>
+            <span id="statusLbl">도전 중</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <strong>알파벳 선택</strong>
+          <div id="letterGrid" class="letter-grid" aria-label="알파벳 그리드"></div>
+        </div>
+
+        <div class="panel">
+          <strong>스티커 보상</strong>
+          <div class="album" id="album"></div>
+        </div>
+
+        <div class="panel">
+          <strong>스티커 보드</strong>
+          <div class="board" id="board" title="스티커를 눌러 보드에 붙여보세요!"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- 성공 레이어 팝업 -->
+  <div id="successModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="dialog" tabindex="-1">
+      <div class="emoji" id="modalEmoji">🚗</div>
+      <h2 id="modalTitle">성공!</h2>
+      <p id="modalDesc">멋지게 완성했어요!</p>
+      <div class="actions">
+        <button id="modalClose" class="btn-lite">확인</button>
+        <button id="modalNext" class="btn">다음 글자</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="testBadge">tests: pending…</div>
+
+<script>
+// [전역] 가이드 모드 상태
+let guideSolid = true; // false=점선(기본), true=실선
+
+// [이벤트 바인딩] 버튼 클릭으로 토글
+document.getElementById('guideToggle').addEventListener('click', () => {
+  guideSolid = !guideSolid;
+  const btn = document.getElementById('guideToggle');
+  btn.textContent = '가이드: ' + (guideSolid ? '실선' : '점선');
+  renderLetter();
+});
+
+/* ======= Utils & Data ======= */
+function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+const VEHICLES = {
+  A:{name:'Ambulance', emoji:'🚑'}, B:{name:'Bus', emoji:'🚌'}, C:{name:'Car', emoji:'🚗'},
+  D:{name:'Dump Truck', emoji:'🚚'}, E:{name:'Excavator', emoji:'🚜'}, F:{name:'Fire Truck', emoji:'🚒'},
+  G:{name:'Garbage Truck', emoji:'🚛'}, H:{name:'Helicopter', emoji:'🚁'}, I:{name:'Ice Cream Truck', emoji:'🚚🍦'},
+  J:{name:'Jeep', emoji:'🚙'}, K:{name:'Kart', emoji:'🏎️'}, L:{name:'Limousine', emoji:'🚘'},
+  M:{name:'Motorcycle', emoji:'🏍️'}, N:{name:'Nascar', emoji:'🏁'}, O:{name:'Off-road Vehicle', emoji:'🚙'},
+  P:{name:'Police Car', emoji:'🚓'}, Q:{name:'Quad Bike', emoji:'🛵'}, R:{name:'Race Car', emoji:'🏎️'},
+  S:{name:'School Bus', emoji:'🚌'}, T:{name:'Tractor', emoji:'🚜'}, U:{name:'U-Haul Truck', emoji:'🚚'},
+  V:{name:'Van', emoji:'🚐'}, W:{name:'Wagon', emoji:'🚙'}, X:{name:'Xpress Train', emoji:'🚄'},
+  Y:{name:'Yacht', emoji:'🛥️'}, Z:{name:'Zeppelin', emoji:'🛩️'}
+};
+const LETTERS = Object.keys(VEHICLES);
+const STORAGE_KEY = 'carABC.progress.v2';
+let progress = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); // {A:true,...}
+
+/* ======= Elements & State ======= */
+const guide = document.getElementById('guideCanvas');
+const draw = document.getElementById('drawCanvas');
+const fx = document.getElementById('fxCanvas');
+const wrap = document.getElementById('canvasWrap');
+const bar = document.getElementById('bar');
+const percentLbl = document.getElementById('percentLbl');
+const statusLbl = document.getElementById('statusLbl');
+const vehLabel = document.getElementById('vehLabel');
+const vehEmoji = document.getElementById('vehEmoji');
+const toastEl = document.getElementById('toast');
+const modal = document.getElementById('successModal');
+const modalEmoji = document.getElementById('modalEmoji');
+const modalTitle = document.getElementById('modalTitle');
+const modalDesc = document.getElementById('modalDesc');
+const modalClose = document.getElementById('modalClose');
+const modalNext = document.getElementById('modalNext');
+const testBadge = document.getElementById('testBadge');
+
+const ctxG = guide.getContext('2d');
+const ctxD = draw.getContext('2d');
+const ctxF = fx.getContext('2d');
+
+let maskC = document.createElement('canvas');
+let coverC = document.createElement('canvas');
+let ctxMask = maskC.getContext('2d');
+let ctxCover = coverC.getContext('2d');
+
+const THRESHOLD = 0.80; // 목표 비율
+let DPI = window.devicePixelRatio || 1;
+let currentIndex = 0;
+let drawing = false; let lastX=0, lastY=0;
+let letterMetrics = {fontSize:100, guideW:14, maskW:22, penW:20, centerX:0, centerY:0};
+let totalMaskPixels = 0; let coverCheckTimer = 0;
+let audioReady = false; let AC = null; // WebAudio
+
+/* ======= Letter Layout ======= */
+function fitFont(letter){
+  const padding = 40;
+  let fontSize = Math.min(wrap.clientWidth, wrap.clientHeight) - padding*2;
+  const guideW = clamp(Math.floor(fontSize*0.06), 10, 22);
+  const maskW  = clamp(Math.floor(fontSize*0.08), 16, 28);
+  const penW   = clamp(Math.floor(fontSize*0.075),16, 26);
+  return {fontSize, guideW, maskW, penW, centerX: wrap.clientWidth/2, centerY: wrap.clientHeight/2};
+}
+
+/* Skeleton path for each letter (single dashed path including strokes) */
+function skeletonPath(letter, m){
+  const p = new Path2D();
+const s = m.fontSize; const cx=m.centerX, cy=m.centerY;
+const left = cx - s*0.5; const top = cy - s*0.54;
+const X = (u)=> left + u*s; const Y = (v)=> top + v*s;
+const line=(u1,v1,u2,v2)=>{ p.moveTo(X(u1),Y(v1)); p.lineTo(X(u2),Y(v2)); };
+const arc =(uc,vc,rx,ry,a1,a2,ccw=false)=>{ p.ellipse(X(uc),Y(vc), s*rx, s*ry, 0, a1, a2, ccw); };
+
+  switch(letter){
+    case 'A':
+      p.moveTo(X(0.15), Y(1.00)); p.lineTo(X(0.50), Y(0.06)); p.lineTo(X(0.85), Y(1.00));
+      p.moveTo(X(0.32), Y(0.62)); p.lineTo(X(0.68), Y(0.62)); break;
+
+/* ─ B: 세로기둥 + 두 볼(오른쪽을 더 멀리, 접점은 기둥에 정확히) */
+case 'B': {
+  const x = 0.22;   // 왼쪽 기둥 x
+  const rx = 0.88;  // 볼의 오른쪽 최대 x (테스트 임계 0.65보다 넉넉히)
+  line(x,1.00, x,0.06);
+  // 윗볼 : 시작(0.18) → 끝(0.44)
+  p.moveTo(X(x), Y(0.18));
+  p.bezierCurveTo(X(rx), Y(0.10), X(rx), Y(0.52), X(x), Y(0.44));
+  // 아랫볼 : 시작(0.58) → 끝(0.92)
+  p.moveTo(X(x), Y(0.58));
+  p.bezierCurveTo(X(rx+0.02), Y(0.56), X(rx+0.02), Y(0.98), X(x), Y(0.92));
+  break;
+}
+
+// ─ C: 약간 더 넓게
+case 'C':
+  arc(0.50,0.55, 0.38,0.45, Math.PI*0.22, Math.PI*1.78, false);
+  break;
+
+    case 'D':
+      line(0.22,1.00, 0.22,0.06);
+      p.moveTo(X(0.22), Y(0.06)); arc(0.24,0.55, 0.48,0.49, -Math.PI/2, Math.PI/2, false); break;
+
+    case 'E':
+      line(0.22,0.06, 0.22,1.00); line(0.22,0.06, 0.80,0.06); line(0.22,0.55, 0.66,0.55); line(0.22,1.00, 0.80,1.00); break;
+
+    case 'F':
+      line(0.22,0.06, 0.22,1.00); line(0.22,0.06, 0.80,0.06); line(0.22,0.55, 0.66,0.55); break;
+
+// ─ G: 개구부 확대 + 가로획 위치 안정
+case 'G':
+  arc(0.50,0.55, 0.38,0.45, Math.PI*0.25, Math.PI*1.75, false);
+  line(0.56,0.55, 0.82,0.55);
+  break;
+
+    case 'H':
+      line(0.22,0.06, 0.22,1.00); line(0.78,0.06, 0.78,1.00); line(0.22,0.55, 0.78,0.55); break;
+
+    case 'I': line(0.50,0.06, 0.50,1.00); break;
+
+    case 'J':
+      line(0.75,0.06, 0.75,0.78); arc(0.57,0.78, 0.20,0.20, 0, Math.PI, false); break;
+
+    case 'K':
+      line(0.26,0.06, 0.26,1.00); line(0.26,0.56, 0.80,0.06); line(0.26,0.56, 0.80,1.00); break;
+
+    case 'L': line(0.26,0.06, 0.26,1.00); line(0.26,1.00, 0.80,1.00); break;
+
+    case 'M':
+      line(0.20,1.00, 0.20,0.06); line(0.20,0.06, 0.50,0.50); line(0.50,0.50, 0.80,0.06); line(0.80,0.06, 0.80,1.00); break;
+
+    case 'N':
+      line(0.20,1.00, 0.20,0.06); line(0.20,0.06, 0.80,1.00); line(0.80,1.00, 0.80,0.06); break;
+
+    case 'O': arc(0.50,0.55, 0.38,0.45, 0, Math.PI*2, false); break;
+
+/* ─ P: 윗볼만 더 멀리 */
+case 'P': {
+  const x = 0.22; const rx = 0.88;
+  line(x,1.00, x,0.06);
+  p.moveTo(X(x), Y(0.20));
+  p.bezierCurveTo(X(rx), Y(0.12), X(rx), Y(0.50), X(x), Y(0.44));
+  break;
+}
+
+    case 'Q':
+      arc(0.50,0.55, 0.38,0.45, 0, Math.PI*2, false); line(0.60,0.75, 0.84,1.00); break;
+
+/* ─ R: P + 다리(사선) */
+case 'R': {
+  const x = 0.22; const rx = 0.88;
+  line(x,1.00, x,0.06);
+  p.moveTo(X(x), Y(0.20));
+  p.bezierCurveTo(X(rx), Y(0.12), X(rx), Y(0.50), X(x), Y(0.44));
+  line(x,0.56, 0.90,1.00);
+  break;
+}
+
+// ─ S: 대칭/곡률 보정(더 부드럽게)
+case 'S':
+  p.moveTo(X(0.78), Y(0.18));
+  p.bezierCurveTo(X(0.58),Y(0.02), X(0.28),Y(0.18), X(0.45),Y(0.36));
+  p.bezierCurveTo(X(0.62),Y(0.54), X(0.48),Y(0.66), X(0.22),Y(0.82));
+  break;
+
+    case 'T': line(0.20,0.06, 0.80,0.06); line(0.50,0.06, 0.50,1.00); break;
+
+/* ─ U: 베지어 2세그먼트로 기둥-아치 C¹ 연속 접합 + 폭/깊이 넉넉히 */
+case 'U': {
+  const leftX = 0.20, rightX = 0.80;   // 폭 넓힘
+  const topY = 0.06;
+  const joinY = 0.74;                  // 아치 시작 높이(살짝 더 내려 안정)
+  const botY  = 0.97;                  // 바닥 깊이(테스트 임계 >0.90 보장)
+  const midX  = 0.50;
+  const rx = (rightX - leftX) / 2, ry = (botY - joinY), k = 0.5522847498;
+
+  // 왼 기둥
+  p.moveTo(X(leftX), Y(topY));
+  p.lineTo(X(leftX), Y(joinY));
+  // 중앙까지
+  p.bezierCurveTo(
+    X(leftX),         Y(joinY + ry*k),
+    X(midX - rx*k),   Y(botY),
+    X(midX),          Y(botY)
+  );
+  // 중앙→오른 기둥
+  p.bezierCurveTo(
+    X(midX + rx*k),   Y(botY),
+    X(rightX),        Y(joinY + ry*k),
+    X(rightX),        Y(joinY)
+  );
+  // 오른 기둥
+  p.lineTo(X(rightX), Y(topY));
+  break;
+}
+
+
+    case 'V': line(0.20,0.06, 0.50,1.00); line(0.50,1.00, 0.80,0.06); break;
+
+    case 'W': line(0.15,0.06, 0.32,1.00); line(0.32,1.00, 0.50,0.30); line(0.50,0.30, 0.68,1.00); line(0.68,1.00, 0.85,0.06); break;
+
+    case 'X': line(0.20,0.06, 0.80,1.00); line(0.80,0.06, 0.20,1.00); break;
+
+    case 'Y': line(0.20,0.06, 0.50,0.50); line(0.80,0.06, 0.50,0.50); line(0.50,0.50, 0.50,1.00); break;
+
+    case 'Z': line(0.20,0.06, 0.80,0.06); line(0.80,0.06, 0.20,1.00); line(0.20,1.00, 0.80,1.00); break;
+
+    default: arc(0.50,0.55, 0.38,0.45, 0, Math.PI*2, false);
+  }
+  return p;
+}
+
+
+function resizeAll(){
+  DPI = window.devicePixelRatio || 1;
+  const w = wrap.clientWidth; const h = wrap.clientHeight;
+  [guide, draw, fx, maskC, coverC].forEach(c=>{ c.width=Math.max(1,Math.floor(w*DPI)); c.height=Math.max(1,Math.floor(h*DPI)); c.style.width=w+"px"; c.style.height=h+"px"; });
+  ctxG.setTransform(DPI,0,0,DPI,0,0); ctxD.setTransform(DPI,0,0,DPI,0,0); ctxF.setTransform(DPI,0,0,DPI,0,0);
+  ctxMask.setTransform(1,0,0,1,0,0); ctxCover.setTransform(1,0,0,1,0,0);
+  renderLetter();
+}
+
+function renderLetter(){
+  [ctxG, ctxD, ctxF, ctxMask, ctxCover].forEach(c=>c.clearRect(0,0,c.canvas.width,c.canvas.height));
+  updateProgress(0); statusLbl.textContent='도전 중'; statusLbl.dataset.done='0';
+
+  const letter = LETTERS[currentIndex];
+  letterMetrics = fitFont(letter);
+  const path = skeletonPath(letter, letterMetrics);
+
+// Visible guide
+ctxG.save();
+ctxG.lineWidth = letterMetrics.guideW;
+ctxG.strokeStyle = '#e9a23b';
+if (guideSolid) {
+  ctxG.setLineDash([]); // 실선
+} else {
+  const dash = Math.max(8, Math.floor(letterMetrics.guideW * 1.1));
+  ctxG.setLineDash([dash, Math.floor(dash * 1.0)]); // 점선(좀 더 촘촘)
+}
+ctxG.lineCap = 'round';
+ctxG.lineJoin = 'round';
+ctxG.stroke(path);
+ctxG.restore();
+
+
+
+
+  // Mask for coverage (offscreen solid)
+  ctxMask.save();
+  ctxMask.clearRect(0,0,maskC.width, maskC.height);
+  ctxMask.scale(DPI,DPI);
+  ctxMask.lineWidth = letterMetrics.maskW; ctxMask.strokeStyle = '#000';
+  ctxMask.lineCap='round'; ctxMask.lineJoin='round'; ctxMask.stroke(path);
+  ctxMask.restore();
+
+  // Calculate mask pixel count
+  const img = ctxMask.getImageData(0,0, maskC.width, maskC.height).data;
+  let count=0; for(let i=3;i<img.length;i+=4){ if(img[i]>10) count++; } totalMaskPixels = count;
+
+  const veh = VEHICLES[letter]; vehLabel.textContent = `${letter} = ${veh.name}`; vehEmoji.textContent = veh.emoji || '🚗';
+  markActiveLetter();
+}
+
+/* ======= Drawing ======= */
+function getPoint(ev, el){ const r=el.getBoundingClientRect(); const x=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left; const y=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top; return {x,y}; }
+function startDraw(ev){ ensureAudio(); drawing=true; const p=getPoint(ev,wrap); lastX=p.x; lastY=p.y; ctxD.lineCap='round'; ctxD.lineJoin='round'; ctxD.strokeStyle='#3b82f6'; ctxD.lineWidth=letterMetrics.penW; ctxD.beginPath(); ctxD.moveTo(p.x,p.y); }
+function moveDraw(ev){ if(!drawing) return; const p=getPoint(ev,wrap); const dx=p.x-lastX, dy=p.y-lastY; const dist=Math.hypot(dx,dy); if(dist<0.5) return; ctxD.lineTo(p.x,p.y); ctxD.stroke();
+  ctxCover.save(); ctxCover.scale(DPI,DPI); ctxCover.lineCap='round'; ctxCover.lineJoin='round'; ctxCover.strokeStyle='#fff'; ctxCover.lineWidth=letterMetrics.penW; ctxCover.beginPath(); ctxCover.moveTo(lastX,lastY); ctxCover.lineTo(p.x,p.y); ctxCover.stroke(); ctxCover.restore(); lastX=p.x; lastY=p.y; throttleCheckCoverage(); }
+function endDraw(){ drawing=false; throttleCheckCoverage(true); }
+function clearDraw(){ ctxD.clearRect(0,0,draw.width,draw.height); ctxCover.clearRect(0,0,coverC.width,coverC.height); updateProgress(0); statusLbl.textContent='도전 중'; statusLbl.dataset.done='0'; }
+
+function throttleCheckCoverage(final=false){ if(coverCheckTimer) return; coverCheckTimer=setTimeout(()=>{ coverCheckTimer=0; checkCoverage(final); }, 100); }
+function checkCoverage(final=false){ const mask=ctxMask.getImageData(0,0, maskC.width, maskC.height).data; const cov=ctxCover.getImageData(0,0, coverC.width, coverC.height).data; let hit=0; for(let i=3;i<mask.length;i+=4){ if(mask[i]>10 && cov[i]>0) hit++; } const pct= totalMaskPixels? (hit/totalMaskPixels) : 0; updateProgress(pct); if(pct>=THRESHOLD && statusLbl.dataset.done!=='1'){ statusLbl.dataset.done='1'; statusLbl.textContent='완료!'; celebrateSuccess(); } else if(!final) { statusLbl.dataset.done='0'; } }
+function updateProgress(p){ const pct=Math.round(p*100); bar.style.width=pct+"%"; percentLbl.textContent=pct+"%"; bar.style.background = p>=THRESHOLD? 'linear-gradient(90deg,#34d399,#10b981)' : 'linear-gradient(90deg,#60a5fa,#3b82f6)'; }
+
+/* ======= Success: Modal + Sticker ======= */
+function celebrateSuccess(){ playEngineRev().then(()=>beep()); const letter=LETTERS[currentIndex]; if(!progress[letter]){ progress[letter]=true; localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); buildAlbum(); } openSuccessModal(letter); }
+function openSuccessModal(letter){ const veh=VEHICLES[letter]; modalEmoji.textContent=veh.emoji||'🚗'; modalTitle.textContent=`${letter} 성공!`; modalDesc.textContent=`${letter} = ${veh.name} 멋지게 완성했어요!`; modal.classList.add('show'); modal.setAttribute('aria-hidden','false'); }
+function closeSuccessModal(){ modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); }
+
+function showToast(msg){ toastEl.textContent=msg; toastEl.classList.add('show'); clearTimeout(showToast._t); showToast._t=setTimeout(()=>toastEl.classList.remove('show'),1800); }
+
+/* ======= Audio ======= */
+function ensureAudio(){ if(audioReady) return; AC = AC || new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended'){ AC.resume(); } audioReady=true; }
+function playEngineRev(){ return new Promise((resolve)=>{ if(!AC){ resolve(); return; } const t0=AC.currentTime; const osc=AC.createOscillator(); const gain=AC.createGain(); const lfo=AC.createOscillator(); const lfoGain=AC.createGain(); osc.type='sawtooth'; osc.frequency.setValueAtTime(90,t0); osc.frequency.exponentialRampToValueAtTime(140,t0+0.9); lfo.frequency.setValueAtTime(6,t0); lfoGain.gain.setValueAtTime(6,t0); lfo.connect(lfoGain).connect(osc.frequency); gain.gain.setValueAtTime(0.0001,t0); gain.gain.exponentialRampToValueAtTime(0.25,t0+0.15); gain.gain.exponentialRampToValueAtTime(0.0001,t0+1.0); osc.connect(gain).connect(AC.destination); osc.start(t0); lfo.start(t0); osc.stop(t0+1.02); lfo.stop(t0+1.02); setTimeout(resolve,1020); }); }
+function beep(){ if(!AC) return; const t=AC.currentTime; const o=AC.createOscillator(); const g=AC.createGain(); o.type='square'; o.frequency.setValueAtTime(880,t); o.frequency.exponentialRampToValueAtTime(440,t+0.15); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.18,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.22); o.connect(g).connect(AC.destination); o.start(t); o.stop(t+0.24); }
+
+/* ======= UI Builders ======= */
+function buildLetterGrid(){ const grid=document.getElementById('letterGrid'); grid.innerHTML=''; LETTERS.forEach((ch,i)=>{ const a=document.createElement('div'); a.className='letter-btn'; a.textContent=ch; a.setAttribute('role','button'); a.addEventListener('click',()=>{ setLetter(i); }); grid.appendChild(a); }); }
+function markActiveLetter(){ const grid=document.getElementById('letterGrid'); [...grid.children].forEach((el,i)=> el.classList.toggle('active', i===currentIndex)); }
+function buildAlbum(){ const album=document.getElementById('album'); album.innerHTML=''; LETTERS.forEach(ch=>{ const d=document.createElement('div'); d.className='sticker'+(progress[ch]?'':' locked'); d.dataset.letter=ch; d.title = progress[ch]? `${ch} 스티커 (클릭해서 보드에 붙이기)`: `${ch} 아직 잠금`; d.textContent= progress[ch]? (VEHICLES[ch].emoji||'⭐') : '🔒'; if(progress[ch]) d.addEventListener('click',()=> addStickerToBoard(ch)); album.appendChild(d); }); }
+function addStickerToBoard(ch){ const board=document.getElementById('board'); const span=document.createElement('span'); span.className='drop'; span.textContent=VEHICLES[ch].emoji||'⭐'; const x=10+Math.random()*(board.clientWidth-60); const y=10+Math.random()*(board.clientHeight-60); span.style.left=x+"px"; span.style.top=y+"px"; board.appendChild(span); makeDraggable(span,board); }
+function makeDraggable(el, container){ let dragging=false,sx=0,sy=0,ox=0,oy=0; const down=e=>{ dragging=true; el.style.cursor='grabbing'; const p=getPoint(e,container); sx=p.x; sy=p.y; ox=parseFloat(el.style.left); oy=parseFloat(el.style.top); e.preventDefault(); }; const move=e=>{ if(!dragging) return; const p=getPoint(e,container); const nx=ox+(p.x-sx); const ny=oy+(p.y-sy); el.style.left=Math.max(0,Math.min(container.clientWidth-40,nx))+'px'; el.style.top=Math.max(0,Math.min(container.clientHeight-40,ny))+'px'; }; const up=()=>{ dragging=false; el.style.cursor='grab'; }; el.addEventListener('pointerdown',down); window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); }
+
+/* ======= Navigation ======= */
+function setLetter(i){ currentIndex=(i+LETTERS.length)%LETTERS.length; renderLetter(); }
+function next(){ setLetter(currentIndex+1); }
+function prev(){ setLetter(currentIndex-1); }
+
+/* ======= Events ======= */
+function bindEvents(){
+  draw.addEventListener('pointerdown', e=>{ startDraw(e); draw.setPointerCapture(e.pointerId); });
+  draw.addEventListener('pointermove', moveDraw);
+  draw.addEventListener('pointerup', endDraw);
+  draw.addEventListener('pointerleave', endDraw);
+
+  document.getElementById('clearBtn').addEventListener('click', clearDraw);
+  document.getElementById('nextBtn').addEventListener('click', next);
+  document.getElementById('prevBtn').addEventListener('click', prev);
+
+  modalClose.addEventListener('click', closeSuccessModal);
+  modal.addEventListener('click', (e)=>{ if(e.target===modal) closeSuccessModal(); });
+  modalNext.addEventListener('click', ()=>{ closeSuccessModal(); next(); });
+  window.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && modal.classList.contains('show')) closeSuccessModal(); });
+
+  window.addEventListener('resize', resizeAll);
+}
+
+/* ======= Init ======= */
+(function init(){ buildLetterGrid(); buildAlbum(); bindEvents(); resizeAll(); setLetter(0); })();
+
+
+
+window.addEventListener('load', __runTests);
+</script>
+</body>
+</html>
