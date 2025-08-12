@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>색상 차고 매칭 (Color Match Garage)</title>
+<style>
+  :root{
+    /* base sizes (JS will re-scale + auto-fit by level & viewport) */
+    --carW: 124px; --carH: 80px; --garageH: 170px; --gap: 10px; --trackH: 220px;
+    --bg:#f7fbff; --panel:#ffffff; --ink:#1f2937; --accent:#4f46e5; --good:#16a34a; --hint:#f59e0b;
+    --shadow: 0 6px 20px rgba(0,0,0,.08);
+  }
+  html,body{height:100%; overflow:hidden}
+  body{margin:0;background:radial-gradient(1200px 600px at 50% -20%, #e8f3ff 0%, var(--bg) 60%);
+    font-family: system-ui,-apple-system,Segoe UI,Roboto,Pretendard,Apple SD Gothic Neo,Noto Sans KR,sans-serif;
+    color:var(--ink); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    /* iOS safe-area bottom to ensure sticker-bar always visible */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .hud{display:flex; align-items:center; gap:12px; justify-content:space-between; padding:10px clamp(12px,3vw,20px);
+    background:linear-gradient(#ffffffcc,#ffffffee); position:sticky; top:0; z-index:30; box-shadow: var(--shadow);}  
+  .title{font-weight:900; letter-spacing:.2px; font-size:clamp(18px,2.4vw,22px); display:flex; align-items:center; gap:10px;}
+  .title .emoji{filter: drop-shadow(0 2px 0 rgba(0,0,0,.06));}
+  .stat{font-weight:800; font-size:clamp(14px,2vw,18px); background:#eef2ff; color:#3730a3; padding:6px 10px; border-radius:14px;}
+  .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .btn{border:0; border-radius:14px; padding:8px 12px; font-weight:800; background:var(--accent); color:#fff; box-shadow: var(--shadow); cursor:pointer; transition: transform .06s ease, box-shadow .3s ease;}
+  .btn.secondary{background:#e5e7eb; color:#111827;} .btn:disabled{opacity:.55; cursor:not-allowed} .btn:active{transform:translateY(1px)}
+  .btn.pulse{animation: btnPulse 1s ease-in-out infinite;} @keyframes btnPulse{0%,100%{box-shadow:0 0 0 0 rgba(79,70,229,.5)}50%{box-shadow:0 0 0 12px rgba(79,70,229,0)}}
+
+  .level-select{font-weight:800; padding:6px 10px; border-radius:10px; border:2px solid #d1d5db; background:#fff}
+
+  .scene{max-width:1100px; margin:8px auto 0; padding:8px; position:relative; overflow:hidden;}
+  .garages{--cols: 2; display:grid; grid-template-columns: repeat(var(--cols), minmax(0,1fr)); gap: var(--gap); margin-bottom: var(--gap);}
+
+  /* Garage design (kid-friendly) */
+  .garage{position:relative; height:var(--garageH); border-radius:18px; background:linear-gradient(#ffffff,#f5f7fb); box-shadow: var(--shadow); border:8px solid #d1d5db; isolation:isolate; overflow:hidden;}
+  .garage .roof{position:absolute; top:-22px; left:10px; right:10px; height:38px; clip-path: polygon(0 100%,50% 0,100% 100%);
+    background: linear-gradient(to bottom, var(--roof, #ddd) 0%, #bbb 100%); filter: drop-shadow(0 6px 4px rgba(0,0,0,.08));}
+  .garage .lintel{position:absolute; top:8px; left:12px; right:12px; height:14px; border-radius:10px; background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,.06) 0 14px, rgba(255,255,255,.8) 14px 28px);
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.7);}  
+  .garage .bay{position:absolute; inset:12px 12px 22px 12px; border-radius:14px; background:linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.02));}
+  .garage .door{position:absolute; left:10px; right:10px; bottom:8px; height:24px; border-radius:10px; background:
+      repeating-linear-gradient( 90deg, rgba(0,0,0,.12) 0 18px, rgba(0,0,0,.04) 18px 36px );
+      box-shadow: inset 0 2px 0 rgba(255,255,255,.6), 0 2px 0 rgba(0,0,0,.06);}  
+  .garage .name{position:absolute; bottom:2px; left:50%; transform:translateX(-50%); font-weight:900; font-size:clamp(12px,1.6vw,16px); padding:3px 8px; border-radius:12px; background:#fff; box-shadow: 0 2px 8px rgba(0,0,0,.06);}  
+  .garage .dot{position:absolute; top:10px; left:10px; width:20px; height:20px; border-radius:50%; outline:3px solid rgba(0,0,0,.08);}  
+  .garage .sparkle{position:absolute; right:10px; top:10px; font-size:18px; animation: float 2.4s ease-in-out infinite;}
+  @keyframes float{50%{transform: translateY(-4px) rotate(-10deg)}}
+
+  /* rainbow hint faster (0.8s) */
+  .garage.hint{animation: rainbowGlow .8s linear 1;}
+  @keyframes rainbowGlow{
+    0%{border-color:#ef4444; box-shadow: 0 0 0 8px rgba(239,68,68,.18), var(--shadow);} 
+    16%{border-color:#f59e0b; box-shadow: 0 0 0 8px rgba(245,158,11,.18), var(--shadow);} 
+    33%{border-color:#22c55e; box-shadow: 0 0 0 8px rgba(34,197,94,.18), var(--shadow);} 
+    50%{border-color:#3b82f6; box-shadow: 0 0 0 8px rgba(59,130,246,.18), var(--shadow);} 
+    66%{border-color:#a78bfa; box-shadow: 0 0 0 8px rgba(167,139,250,.18), var(--shadow);} 
+    83%{border-color:#f472b6; box-shadow: 0 0 0 8px rgba(244,114,182,.18), var(--shadow);} 
+    100%{border-color:#ef4444; box-shadow: 0 0 0 8px rgba(239,68,68,.18), var(--shadow);} 
+  }
+
+  .lot{position:relative; border-radius:14px; background:linear-gradient(0deg, #d1fae5 0 10px, transparent 10px) top/100% 100% no-repeat;}
+
+  /* Cars (reduced border/outline height; perfect centering) */
+  .car{width:var(--carW); height:var(--carH); position:absolute; left:10px; top: calc(var(--garageH) + 18px); user-select:none; touch-action:none; cursor:grab; border-radius:18px; transform:translateZ(0); transition: box-shadow .15s ease, transform .15s ease; filter: drop-shadow(0 8px 8px rgba(0,0,0,.12));
+    display:flex; align-items:center; justify-content:center; font-family: Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, system-ui, sans-serif;
+    border:4px solid; outline:4px solid #fff; /* thinner sticker border to avoid vertical crowding */
+  }
+  .car.dragging{cursor:grabbing; transform: translateZ(0);} 
+  .car.locked{cursor:default; pointer-events:none; opacity:.98}
+  /* center parked car inside bay */
+  .car.in-bay{top:50% !important; left:50% !important; bottom:auto; transform: translate(-50%, -50%) scale(.96);} 
+  .car .emoji{font-size: clamp(36px, 6.2vw, 64px); line-height: 1;}
+
+  .shake{animation:shake .35s ease}
+  @keyframes shake{10%{transform:translateX(-4px)} 20%{transform:translateX(4px)} 30%{transform:translateX(-3px)} 40%{transform:translateX(3px)} 50%{transform:translateX(-2px)} 60%{transform:translateX(2px)} 100%{transform:none}}
+
+  .toast{position:fixed; left:50%; bottom:10px; transform:translateX(-50%); background:#111827; color:#fff; font-weight:900; padding:8px 12px; border-radius:12px; opacity:0; pointer-events:none; transition: opacity .2s ease, transform .2s ease; z-index:70;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-2px)}
+
+  .level-badge{font-weight:900; padding:4px 8px; border-radius:10px; background:#dcfce7; color:#166534;}
+
+  /* Modals */
+  .modal{position:fixed; inset:0; display:none; place-items:center; background:rgba(0,0,0,.4); z-index:80;}
+  .modal.show{display:grid}
+  .modal .card{background:#fff; border-radius:20px; padding:20px; box-shadow: var(--shadow); text-align:center; max-width: 360px}
+  .modal .card h2{margin:0 0 8px; font-size:22px}
+  .modal .card p{margin:0 0 12px; font-weight:600}
+
+  /* Stadium ROAD track (in-page) */
+  .track{position:relative; height:var(--trackH); margin-top: 0; border-radius:22px; box-shadow: var(--shadow); background:#2f2f2f;}
+  .track svg{position:absolute; inset:0; width:100%; height:100%; display:block}
+  #trackObjects{position:absolute; inset:0;}
+  .obstacle{position:absolute; font-size:32px; filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)); cursor:grab; user-select:none; touch-action:none;}
+  .obstacle.dragging{cursor:grabbing; transform: scale(1.05);} 
+  .toy{position:absolute; width:64px; height:64px; display:flex; align-items:center; justify-content:center; font-size:52px; cursor:grab; user-select:none; touch-action:none;}
+  .toy.dragging{cursor:grabbing; transform: scale(1.05);} 
+  .track-hint{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-weight:900; background:#111827cc; color:#fff; padding:6px 10px; border-radius:12px}
+
+  /* Sticker bar (BELOW track, tightly attached) */
+  .sticker-bar{display:flex; align-items:center; gap:10px; padding:8px 10px; margin:0 auto 8px; max-width:1100px; min-height:56px; background: #ffffffcc; border-radius:0 0 16px 16px; box-shadow: var(--shadow); overflow-x:auto; scroll-behavior:smooth;}
+  .sticker-bar .label{font-weight:800; opacity:.85; white-space:nowrap; cursor:pointer}
+  .sticker-bar .st-car{font-size:34px !important;}
+
+  /* iPad portrait fine-tuning */
+  @media (min-width: 744px) and (max-width: 820px) { :root{ --trackH: 210px; } }
+  /* iPad Pro 11/12.9 portrait */
+  @media (min-width: 820px) and (max-width: 1024px) { :root{ --trackH: 230px; } }
+  @media (max-width: 640px){ :root{ --trackH: 200px; } .title{font-size:18px} }
+</style>
+</head>
+<body>
+  <div class="hud" role="banner" aria-label="게임 정보">
+    <div class="title"><span class="emoji">🏎️</span> 색상 차고 매칭</div>
+    <div class="stat">완료 <span id="done">0</span>/<span id="total">0</span></div>
+    <div class="controls">
+      <span class="level-badge">단계</span>
+      <select id="levelSelect" class="level-select" aria-label="단계 선택">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+        <option value="8">8</option>
+        <option value="9">9</option>
+        <option value="10">10</option>
+      </select>
+      <button id="resetAll" class="btn secondary" aria-label="처음부터">⟲ 처음부터</button>
+      <button id="restart" class="btn secondary" aria-label="다시하기">↺ 이 단계 다시</button>
+      <button id="next" class="btn" disabled aria-label="다음 단계">다음 단계 ▶</button>
+    </div>
+  </div>
+
+  <main class="scene" id="scene" role="main" aria-label="놀이 영역">
+    <section id="garages" class="garages" aria-label="차고들"></section>
+    <section id="lot" class="lot" aria-label="주차장"></section>
+    <section id="track" class="track" aria-label="운동장 트랙">
+      <!-- Road-like stadium track: outer asphalt + white lanes + dashed center line -->
+      <svg id="trackSvg" viewBox="0 0 1000 420" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="10" y="10" width="980" height="400" rx="200" ry="200" fill="#2f2f2f"/>
+        <!-- lane edges (road style) -->
+        <rect x="40" y="40" width="920" height="340" rx="170" ry="170" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+        <rect x="80" y="80" width="840" height="260" rx="130" ry="130" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+        <!-- dashed center line like highway median -->
+        <rect x="120" y="120" width="760" height="180" rx="90" ry="90" fill="none" stroke="#fafafa" stroke-width="6" stroke-dasharray="24 18"/>
+      </svg>
+      <div id="trackObjects">
+        <div id="trackHint" class="track-hint">스티커를 눌러 트랙에서 놀아요! (장애물도 드래그)</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Sticker bar BELOW the track (attached) -->
+  <div class="sticker-bar" id="stickers" aria-label="스티커 보상 영역">
+    <div class="label" id="stickerLabel" title="트랙으로 보내기">내 스티커 (트랙으로 보내기)</div>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- per-level modal -->
+  <div id="levelModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="levelTitle">
+    <div class="card">
+      <h2 id="levelTitle">👏 잘했어요!</h2>
+      <p id="levelMsg">다음 단계로 갈까요?</p>
+      <div style="display:flex; gap:8px; justify-content:center">
+        <button id="btnLevelNext" class="btn">다음 단계 ▶</button>
+        <button id="btnLevelOk" class="btn secondary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- final modal -->
+  <div id="finalModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="finalTitle">
+    <div class="card">
+      <h2 id="finalTitle">🎉 모든 단계를 완료했어요!</h2>
+      <p>처음부터 다시 해볼까요?</p>
+      <div style="display:flex; gap:8px; justify-content:center">
+        <button id="btnAgain" class="btn">처음부터 다시 ▶</button>
+        <button id="btnClose" class="btn secondary">닫기</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  /*** CONFIG ***/
+  const COLOR_SET = [
+    {name:'빨강', key:'red',   hex:'#ef4444', text:'#fff'},
+    {name:'파랑', key:'blue',  hex:'#3b82f6', text:'#fff'},
+    {name:'노랑', key:'yellow',hex:'#facc15', text:'#111'},
+    {name:'초록', key:'green', hex:'#22c55e', text:'#fff'},
+    {name:'주황', key:'orange',hex:'#fb923c', text:'#111'},
+    {name:'보라', key:'purple',hex:'#a78bfa', text:'#111'},
+    {name:'분홍', key:'pink',  hex:'#f472b6', text:'#111'},
+    {name:'갈색', key:'brown', hex:'#8b5e3c', text:'#fff'},
+    {name:'하늘', key:'sky',   hex:'#38bdf8', text:'#111'},
+    {name:'연두', key:'lime',  hex:'#84cc16', text:'#111'},
+  ];
+  const CAR_EMOJIS = ['🚑','🚓','🚒','🚜','🚛','🚗','🏎️','🚚','🚙','🚕','🚌','🚐'];
+  const OBSTACLE_EMOJIS = ['🕳️','🚧','🚦','🛑','⚠️','🚸'];
+  const MAX_LEVEL = 10; 
+  const BASE = {carW:124, carH:80, garageH:170, gap:10, trackH:220};
+
+  const hud = document.querySelector('.hud');
+  const scene = document.getElementById('scene');
+  const garagesWrap = document.getElementById('garages');
+  const lot = document.getElementById('lot');
+  const track = document.getElementById('track');
+  const trackObjects = document.getElementById('trackObjects');
+  const trackHint = document.getElementById('trackHint');
+  const stickersBar = document.getElementById('stickers');
+  const stickerLabel = document.getElementById('stickerLabel');
+
+  const doneEl = document.getElementById('done');
+  const totalEl = document.getElementById('total');
+  const levelSelect = document.getElementById('levelSelect');
+  const btnNext = document.getElementById('next');
+  const btnRestart = document.getElementById('restart');
+  const btnResetAll = document.getElementById('resetAll');
+  const toast = document.getElementById('toast');
+  const levelModal = document.getElementById('levelModal');
+  const btnLevelNext = document.getElementById('btnLevelNext');
+  const btnLevelOk = document.getElementById('btnLevelOk');
+  const finalModal = document.getElementById('finalModal');
+  const btnAgain = document.getElementById('btnAgain');
+  const btnClose = document.getElementById('btnClose');
+
+  const state = { level: 1, palette: [], total: 0, done: 0, startPos: new Map() };
+
+  function showToast(msg, ms=900){ toast.textContent = msg; toast.classList.add('show'); setTimeout(()=> toast.classList.remove('show'), ms); }
+  function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+  function getVH(){
+    const vv = window.visualViewport; // iPad/iOS safe viewport
+    return Math.round(Math.min(window.innerHeight, vv ? vv.height : window.innerHeight));
+  }
+
+  function applyScale(scale){
+    document.documentElement.style.setProperty('--carW', (BASE.carW*scale)+'px');
+    document.documentElement.style.setProperty('--carH', (BASE.carH*scale)+'px');
+    document.documentElement.style.setProperty('--gap', (BASE.gap*scale)+'px');
+    document.documentElement.style.setProperty('--trackH', (BASE.trackH*scale)+'px');
+    // garage height == just enough to hold a car + margin
+    const carH = BASE.carH*scale; const garageH = Math.max( carH + 40*scale, 120 );
+    document.documentElement.style.setProperty('--garageH', garageH+'px');
+  }
+
+  // Fit everything (garages + cars (max 2 rows) + track) into viewport height
+  function sizeToFit(count){
+    const vh = getVH();
+    const safeBottom = parseFloat(getComputedStyle(document.body).getPropertyValue('padding-bottom')) || 0;
+    const reserved = hud.offsetHeight + stickersBar.offsetHeight + safeBottom + 16; // leave space for sticker bar (attached)
+    const availH = Math.max(260, vh - reserved);
+
+    let scale = (count<=2?0.98: count<=4?0.94: count<=6?0.88: count<=8?0.8: 0.72);
+    let colsG = Math.min(count, 5); // garages up to 5 columns
+
+    for(let iter=0; iter<5; iter++){
+      applyScale(scale);
+      const cs = getComputedStyle(document.documentElement);
+      const carW = parseFloat(cs.getPropertyValue('--carW'));
+      const carH = parseFloat(cs.getPropertyValue('--carH'));
+      const garageH = parseFloat(cs.getPropertyValue('--garageH'));
+      const gap = parseFloat(cs.getPropertyValue('--gap'));
+      const trackH = parseFloat(cs.getPropertyValue('--trackH'));
+
+      const rowsG = Math.ceil(count/colsG);
+      const gridH = rowsG*garageH + Math.max(0, rowsG-1)*gap;
+
+      // cars: cap to 2 rows; columns chosen so that rows <= 2
+      const lotW = scene.clientWidth - 16; // approximate padding
+      let colsC = Math.max(1, Math.floor((lotW - gap*2) / (carW + gap)));
+      colsC = Math.max(1, Math.min(colsC, count));
+      let rowsC = Math.ceil(count / colsC);
+      if(rowsC > 2){ colsC = Math.ceil(count/2); rowsC = 2; }
+      const rowGap = Math.max(18, gap + 10); // slightly wider to avoid overlap
+      const lotH = rowsC*(carH + rowGap) + 12;
+
+      const needed = gridH + gap + lotH + gap + trackH + 6;
+      const fit = availH / needed;
+      scale = Math.max(0.52, Math.min(1.0, scale * fit));
+    }
+
+    applyScale(scale);
+    scene.style.height = availH + 'px';
+    garagesWrap.style.setProperty('--cols', String(colsG));
+    return {scale};
+  }
+
+  function initLevel(lvl=1){
+    garagesWrap.innerHTML=''; lot.innerHTML='';
+    // reset stickers per level
+    [...document.querySelectorAll('.st-car')].forEach(n=>n.remove());
+    trackHint.style.display=''; trackObjects.querySelectorAll('.toy,.obstacle').forEach(n=>n.remove());
+
+    state.level = lvl; levelSelect.value = String(lvl);
+    state.done=0; doneEl.textContent='0'; btnNext.disabled=true; btnNext.classList.remove('pulse');
+    hideLevel(); hideFinal();
+
+    const colorCount = Math.min(lvl, COLOR_SET.length); 
+    state.palette = shuffle(COLOR_SET).slice(0, colorCount);
+    state.total = state.palette.length; totalEl.textContent = state.total;
+
+    sizeToFit(colorCount);
+
+    buildGarages(state.palette);
+    requestAnimationFrame(()=> spawnCars(state.palette));
+
+    showToast('같은 색 차고로 쏙!');
+  }
+
+  function buildGarages(colors){
+    colors.forEach(c=>{
+      const g=document.createElement('div'); g.className='garage'; g.dataset.key=c.key; g.style.borderColor=shade(c.hex,-6);
+      g.innerHTML = `
+        <div class="roof" style="--roof:${shade(c.hex, -10)}"></div>
+        <div class="lintel"></div>
+        <div class="bay" data-bay="true"></div>
+        <div class="door"></div>
+        <div class="dot" style="background:${c.hex}"></div>
+        <div class="sparkle">✨</div>
+        <div class="name" style="color:${c.text}; background:${mix(c.hex,'#ffffff',.7)}">${c.name}</div>
+      `;
+      garagesWrap.appendChild(g);
+    });
+  }
+
+  // Cars arranged by count; up to 2 rows; perfectly centered
+  function spawnCars(colors){
+    const order = shuffle(colors);
+    const cs = getComputedStyle(document.documentElement);
+    const gap = parseFloat(cs.getPropertyValue('--gap'));
+    const carW = parseFloat(cs.getPropertyValue('--carW'));
+    const carH = parseFloat(cs.getPropertyValue('--carH'));
+    const lotW = lot.clientWidth;
+
+    const N = order.length;
+    let cols = Math.max(1, Math.floor((lotW - gap*2) / (carW + gap)));
+    cols = Math.max(1, Math.min(cols, N));
+    let rows = Math.ceil(N/cols);
+    if(rows>2){ cols = Math.ceil(N/2); rows = 2; }
+
+    const totalRowW = (idxRow)=> {
+      const n = (idxRow===rows-1) ? (N - cols*(rows-1)) : cols;
+      return n*carW + (n-1)*gap;
+    };
+
+    const rowGap = Math.max(18, gap + 10); // wider spacing between rows
+    lot.style.height = (rows * (carH + rowGap) + 16) + 'px';
+
+    order.forEach((c,idx)=>{
+      const car=createEmojiCar(c);
+      lot.appendChild(car);
+      const row = Math.floor(idx/cols);
+      const colInRow = idx % cols;
+      const rowW = totalRowW(row);
+      const startX = Math.max(gap, (lotW - rowW)/2);
+      const x = startX + colInRow*(carW + gap);
+      const y = 8 + row*(carH + rowGap);
+      setCarPos(car,x,y);
+      state.startPos.set(car,{x,y});
+      enableDrag(car);
+    });
+  }
+
+  function createEmojiCar(c){
+    const el=document.createElement('div'); el.className='car'; el.dataset.key=c.key; const emoji = CAR_EMOJIS[Math.floor(Math.random()*CAR_EMOJIS.length)]; el.dataset.emoji = emoji; el.setAttribute('role','img'); el.setAttribute('aria-label', `${c.name} 자동차`);
+    el.innerHTML = `<div class="emoji" aria-hidden="true">${emoji}</div>`;
+    el.style.background = `linear-gradient(180deg, ${mix(c.hex,'#ffffff',.18)}, ${c.hex})`;
+    el.style.borderColor = shade(c.hex,-14);
+    return el;
+  }
+
+  function setCarPos(el,x,y){ el.style.left = `${x}px`; el.style.top = `${y}px`; }
+
+  function enableDrag(el){
+    let offsetX=0, offsetY=0; 
+    function onDown(e){ e.preventDefault(); el.classList.add('dragging'); const p=pointFromEvent(e); const rect=el.getBoundingClientRect(); offsetX = p.x - rect.left; offsetY = p.y - rect.top; el.setPointerCapture?.(e.pointerId); }
+    function onMove(e){ if(!el.classList.contains('dragging')) return; e.preventDefault(); const p=pointFromEvent(e); const lotRect = lot.getBoundingClientRect(); const x = p.x - lotRect.left - offsetX; const y = p.y - lotRect.top - offsetY; setCarPos(el, x, y); }
+    function onUp(e){ if(!el.classList.contains('dragging')) return; e.preventDefault(); el.classList.remove('dragging'); checkDrop(el); }
+    el.addEventListener('pointerdown', onDown, {passive:false});
+    window.addEventListener('pointermove', onMove, {passive:false});
+    window.addEventListener('pointerup', onUp, {passive:false});
+  }
+
+  function pointFromEvent(e){ if(e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY}; return {x:e.clientX, y:e.clientY}; }
+
+  function checkDrop(car){
+    const carRect = car.getBoundingClientRect(); const center = {x: carRect.left + carRect.width/2, y: carRect.top + carRect.height/2};
+    const garages = [...garagesWrap.querySelectorAll('.garage')];
+    let over=null; for(const g of garages){ const r=g.getBoundingClientRect(); if(center.x>=r.left && center.x<=r.right && center.y>=r.top && center.y<=r.bottom){ over=g; break; } }
+    const correct = garages.find(g=> g.dataset.key===car.dataset.key);
+    if(over && over.dataset.key===car.dataset.key){ parkInGarage(car, over); success(car); } else { wrong(car, correct); }
+  }
+
+  function parkInGarage(car, garage){
+    const bay = garage.querySelector('[data-bay]');
+    car.classList.add('locked');
+    bay.appendChild(car);
+    requestAnimationFrame(()=>{ car.classList.add('in-bay'); });
+  }
+
+  function success(car){
+    state.done++; doneEl.textContent=String(state.done);
+    const color = state.palette.find(c=>c.key===car.dataset.key); if(color) addSticker(car.dataset.emoji, color.hex);
+    if(state.done >= state.total){ setTimeout(()=> onLevelComplete(), 220); }
+  }
+
+  function onLevelComplete(){
+    if(state.level < MAX_LEVEL){
+      document.getElementById('levelTitle').textContent = '👏 잘했어요!';
+      document.getElementById('levelMsg').textContent = `단계 ${state.level} 완료! 다음 단계로 갈까요?`;
+      showLevel();
+    } else { showFinal(); }
+  }
+
+  function wrong(car, correctGarage){
+    car.classList.add('shake'); setTimeout(()=> car.classList.remove('shake'), 360);
+    const back = state.startPos.get(car); if(back){ setCarPos(car, back.x, back.y); }
+    if(correctGarage){ correctGarage.classList.add('hint'); setTimeout(()=> correctGarage.classList.remove('hint'), 800); }
+  }
+
+  function addSticker(emoji, colorHex){
+    const s=document.createElement('div'); s.className='st st-car'; s.style.width='46px'; s.style.height='46px'; s.style.flex='0 0 auto'; s.style.display='grid'; s.style.placeItems='center'; s.style.borderRadius='12px'; s.style.marginRight='4px'; s.style.background=`linear-gradient(180deg, ${mix(colorHex,'#ffffff',.18)}, ${colorHex})`; s.style.border = `3px solid ${shade(colorHex,-20)}`; s.style.filter='drop-shadow(0 2px 4px rgba(0,0,0,.12))'; s.style.fontSize='34px'; s.textContent = emoji; stickersBar.appendChild(s); stickersBar.scrollLeft = stickersBar.scrollWidth; }
+
+  function showLevel(){ levelModal.classList.add('show'); }
+  function hideLevel(){ levelModal.classList.remove('show'); }
+  function showFinal(){ finalModal.classList.add('show'); }
+  function hideFinal(){ finalModal.classList.remove('show'); }
+
+  // ==== TRACK (inline) ====
+  function populateTrack(){
+    const items = [...document.querySelectorAll('.st-car')];
+    if(items.length===0){ showToast('먼저 자동차를 모아볼까요?'); return; }
+    trackHint.style.display='none';
+    trackObjects.querySelectorAll('.toy,.obstacle').forEach(n=>n.remove());
+
+    // Spawn random draggable obstacles
+    const obsCount = 4; const W = track.clientWidth, H = track.clientHeight;
+    for(let i=0;i<obsCount;i++){
+      const ob=document.createElement('div'); ob.className='obstacle'; ob.textContent = OBSTACLE_EMOJIS[i%OBSTACLE_EMOJIS.length];
+      const x = Math.random()*(W-40)+10; const y = Math.random()*(H-40)+10; setFreePos(ob,x,y); enableFreeDrag(ob, trackObjects);
+      trackObjects.appendChild(ob);
+    }
+
+    // Spawn toys at randomized positions along an inner loop
+    const cx=W/2, cy=H/2; const r = Math.min(cx, cy) * 0.7;
+    items.forEach((s)=>{
+      const toy=document.createElement('div'); toy.className='toy'; toy.textContent = s.textContent; trackObjects.appendChild(toy);
+      const ang = Math.random()*Math.PI*2; const jitterR = r * (0.8 + Math.random()*0.18);
+      const x = cx + jitterR*Math.cos(ang) - 32; const y = cy + jitterR*Math.sin(ang) - 32;
+      setFreePos(toy, x, y); enableFreeDrag(toy, trackObjects);
+    });
+  }
+
+  function setFreePos(el,x,y){ el.style.left = `${x}px`; el.style.top = `${y}px`; }
+
+  function enableFreeDrag(el, container){
+    let offsetX=0, offsetY=0; 
+    function onDown(e){ e.preventDefault(); el.classList.add('dragging'); const p=pointFromEvent(e); const rect=el.getBoundingClientRect(); offsetX=p.x-rect.left; offsetY=p.y-rect.top; el.setPointerCapture?.(e.pointerId); }
+    function onMove(e){ if(!el.classList.contains('dragging')) return; e.preventDefault(); const p=pointFromEvent(e); const r=container.getBoundingClientRect(); let x=p.x-r.left-offsetX; let y=p.y-r.top-offsetY; x=Math.max(0, Math.min(r.width-64, x)); y=Math.max(0, Math.min(r.height-64, y)); setFreePos(el,x,y); }
+    function onUp(){ el.classList.remove('dragging'); }
+    el.addEventListener('pointerdown', onDown, {passive:false});
+    window.addEventListener('pointermove', onMove, {passive:false});
+    window.addEventListener('pointerup', onUp, {passive:false});
+  }
+
+  function shade(hex, amt){ const c=hex.replace('#',''); const num=parseInt(c,16); let r=(num>>16)+amt, g=(num>>8 & 0x00FF)+amt, b=(num & 0x0000FF)+amt; r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b)); return '#'+(r<<16 | g<<8 | b).toString(16).padStart(6,'0'); }
+  function mix(a,b,t){ const pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16); const ar=pa>>16, ag=(pa>>8)&255, ab=pa&255; const br=pb>>16, bg=(pb>>8)&255, bb=pb&255; const r=Math.round(ar+(br-ar)*t); const g=Math.round(ag+(bg-ag)*t); const bl=Math.round(ab+(bb-ab)*t); return '#'+(r<<16 | g<<8 | bl).toString(16).padStart(6,'0'); }
+
+  // Buttons & events
+  btnRestart.addEventListener('click', ()=> initLevel(state.level));
+  btnResetAll.addEventListener('click', ()=>{ initLevel(1); });
+  btnLevelNext.addEventListener('click', ()=>{ hideLevel(); if(state.level < MAX_LEVEL){ initLevel(state.level+1); } });
+  btnLevelOk.addEventListener('click', ()=>{ hideLevel(); btnNext.disabled=false; btnNext.classList.add('pulse'); });
+  btnClose.addEventListener('click', hideFinal);
+  btnAgain.addEventListener('click', ()=>{ hideFinal(); initLevel(1); });
+  btnNext.addEventListener('click', ()=>{ if(state.level < MAX_LEVEL){ initLevel(state.level+1); } });
+  levelSelect.addEventListener('change', (e)=>{ const v=parseInt(e.target.value,10)||1; initLevel(v); });
+  stickerLabel.addEventListener('click', populateTrack);
+
+  function pointFromEvent(e){ if(e.touches && e.touches[0]) return {x:e.touches[0].clientX, y:e.touches[0].clientY}; return {x:e.clientX, y:e.clientY}; }
+
+  // First boot + resize/orientation fit (iPad friendly)
+  initLevel(1);
+  window.addEventListener('resize', ()=> initLevel(state.level));
+  window.visualViewport?.addEventListener('resize', ()=> initLevel(state.level));
+  window.addEventListener('orientationchange', ()=> setTimeout(()=> initLevel(state.level), 50));
+})();
+</script>
+</body>
+</html>
